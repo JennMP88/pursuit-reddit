@@ -1,94 +1,89 @@
-const storage = require('node-persist');
+const pgp = require('pg-promise')({});
+const db = pgp('postgres://localhost/blog');
 
-/*
-    @function: createUser
-    @param: userName <string>
-    @param: userData <JSONObject>
-    @returns: Promise
+const UserService = {};
 
-    @desc - takes in a unique username, such as
-            taqqui.karim and a JSON object representing
-            user info, such as: {
-                "firstName": "Taq",
-                "lastName": "Karim",
-                "phoneNumber": "1234567890"
-            }
-            and persists to memory
-*/
-const createUser = (userName, userData) => {
-    return storage.init().then(() => {
-        return storage.setItem(userName, userData);
-    })
-    
+//creates post of user
+//POST /user
+UserService.create = (username,email,password) => {
+  return db.none('INSERT INTO users(username,email,password) VALUES (${username}, ${email}, ${password})',{username,email,password}) 
 }
 
-/*
-    @function: readUser
-    @param: userName <string>
-    @returns: Promise
-
-    @desc - takes in a username, such as
-            taqqui.karim and returns a promise 
-            wrapping a JSON object representing
-            user info, such as: {
-                "firstName": "Taq",
-                "lastName": "Karim",
-                "phoneNumber": "1234567890"
-            }
-*/
-const readUser = userName => {
-    // return promise!
-    return storage.init().then(() => {
-        return storage.getItem(userName);
-    });
+//reads a particular user given an id 
+//GET /user/:user_id
+UserService.read = (id) => {
+ console.log("hoy")
+  return db.one("SELECT username FROM users WHERE id=${id}", {id})
 }
 
-/*
-    @function: updateUser
-    @param: userName <string>
-    @param: userData <JSONObject>
-    @returns: Promise
+//PUT user/:user_id
+//updates info
+UserService.put = (username, email, password,user_id) => {
+    console.log("hoy")
+     return db.one("UPDATE users SET username=${username}, email=${email}, password=${password} WHERE id=${user_id}", {username, email, password,user_id})
+   }
 
-    @desc - takes in a username, such as
-            taqqui.karim and returns a promise 
-            wrapping a JSON object representing
-            user info, such as: {
-                "firstName": "Taq",
-                "lastName": "Karim",
-                "phoneNumber": "1234567890"
-            }
-*/
+//DEL /user/:user_id
+UserService.delete = (user_id) => {
+    return db.none("DELETE FROM users WHERE id=${user_id}",{user_id})
+  }
 
-const updateUser = (userName, userData) => {
-    return createUser(userName, userData)
+//gets all post posted from a particular userid
+//GET /user/:user_id/posts
+UserService.read2 = (user_id) => {
+    console.log("work it")
+    return db.any("SELECT posts.id, posts.author, posts.title, posts.body FROM posts users JOIN posts ON users.id=posts.author WHERE users.id=${user_id}" ,{user_id})
+  }
+
+//get all the post with the post id from the user id
+//GET /user/:user_id/posts/:post_id
+UserService.read3 = (user_id, post_id) => {
+    // return db.any("SELECT * FROM posts WHERE author=${user_id} AND id=${post_id}", {user_id,post_id})
+    return db.any("SELECT b.title, b.body FROM users a JOIN posts b ON a.id=b.author WHERE a.id=${user_id} AND b.id=${post_id} ", {user_id,post_id})
+  }
+   
+///user/:user_id/comments
+UserService.read4 = (user_id) => {
+    return db.any("SELECT * FROM comments WHERE author=${user_id}", {user_id})
+  }
+
+
+//user/:user_id/comments/:comment_id
+UserService.read5 = (user_id, comment_id) => {
+    console.log("runs")
+    return db.any("SELECT comments.title FROM comments users JOIN comments ON users.id=comments.author WHERE users.id=${user_id}  AND comments.author=${comment_id}  ", {user_id,comment_id})
 }
 
-/*
-    @function: removeUser
-    @param: userName <string>
-    @returns: Promise
+//login
+// /user/login
+UserService.read=(id)=>{
+    return db.one('SELECT * FROM users WHERE id=${id}',{id})
+}
+//-----ignore
+// *****i do not need this 
+// UserService.update = (id,username,email) => {
+//     console.log(id,username, email)
+//   return db.none("UPDATE users SET username=${username}, email=${email} WHERE id=${id}", {id,username,email})
+// }
+//*** */redid up above 
+// UserService.delete = (id) => {
+//   return db.none("DELETE FROM users WHERE id=${id};",{id})
+// }
+//------------
 
-    @desc - takes in a username, such as
-            taqqui.karim and removes item
-*/
-const deleteUser = userName => {
-    return storage.init()
-        .then(() => {
-            return storage.removeItem(userName);
-        })
+//***************** Tokens
+UserService.insertToken = (token, username) => db.none(
+  'UPDATE users SET token = ${token} WHERE username = ${username}', {token, username,}
+);
+
+UserService.checkForToken = (request, response, next) => {
+  if (!(request.headers.token)) {
+      response.json({
+          'Response': `You must log in.`
+      });
+  }
+  next();
 }
 
-const allUsers = () => {
-  return storage.init().then(() => {
-    return storage.values()
-  });
-}
 
-module.exports = {
-    createUser,
-    readUser,
-    updateUser,
-    deleteUser,
-    allUsers
-}
-
+module.exports = UserService;

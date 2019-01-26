@@ -1,137 +1,154 @@
-const bcrypt = require('bcrypt');
 const express = require('express');
-const uuidv1 = require('uuid/v1');
+const userRouter = express.Router();
+const UserService = require('../services/user');
 
-const {checkForToken} = require('../middleware')
-const UserService = require("../services/user");
 
-const app = express.Router();
-
-// GET ALL USERS : ADMIN
-app.get('/all', (req, res) => {
-    UserService.allUsers()
-        .then(users => {
-            res.json(users);
+// POST /user- CREATE USER
+userRouter.post('/', (req, res) => {
+    const { username, email, password } = req.body
+        UserService.create(username, email, password)
+        .then(() => {
+            res.json({ success: `user with username: ${username} created` });
         })
         .catch(err => {
-            res.status(404).json({ error: err.toString() })
+            res.json(err.toString());
+        })
+    })
+
+
+// GET - READ USER
+//GET /user/:user_id
+userRouter.get('/:user_id', (req, res) => {
+    const { user_id } = req.params;
+    console.log("hello")
+    console.log(user_id)
+    UserService.read(user_id)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+// PUT - UPDATE USER
+//--PRIVATE?
+userRouter.put('/:user_id', (req, res) => {
+    const { user_id } = req.params;
+    console.log(req.params)
+    const { username, email, password } = req.body;
+    console.log("hi2")
+    console.log(user_id)
+    UserService.update(user_id, username, email,password)
+        .then(() => {
+            res.json({ success: `user with username: ${user_id} updated` });
+
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+// //DELETE PRIVATE 
+// userRouter.delete('/:user_id', (req, res) => {
+//     const { user_id } = req.params;
+//     UserService.delete(user_id)
+//         .then(() => {
+//             res.json(`Deleted user: ${user_id}`);
+//         })
+//         .catch(err => {
+//             res.json(err.toString())
+//         })
+// });
+
+// DELETE - DELETE USER
+userRouter.delete('/:user_id', (req, res) => {
+    const { user_id } = req.params;
+
+    UserService.delete(user_id)
+        .then(() => {
+            res.json({ success: `user with ID: ${user_id} deleted.` });
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+//GET /user/:user_id/posts
+userRouter.get('/:user_id/posts', (req, res) => {
+    const { user_id } = req.params;
+    console.log(user_id)
+    UserService.read2(user_id)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+//GET /user/:user_id/posts/:post_id
+userRouter.get('/:user_id/posts/:post_id', (req, res) => {
+    const { user_id, post_id } = req.params;
+
+    UserService.read3(user_id, post_id)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+//GET /user/:user_id/comments
+userRouter.get('/:user_id/comments', (req, res) => {
+    const { user_id } = req.params;
+
+    UserService.read4(user_id)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+//GET  /user/:user_id/comments/:comment_id
+userRouter.get('/:user_id/comments/:comment_id', (req, res) => {
+    const { user_id, comment_id } = req.params;
+
+    UserService.read5(user_id, comment_id)
+        .then(data => {
+            res.json(data);
+        })
+        .catch(err => {
+            res.json(err.toString());
+        })
+});
+
+
+//--- LOGIN USER 
+// POST /user/login
+userRouter.post('/login', (req,res)=> {
+    const {id, username, password } = req.body; 
+    userService.readUser(id).then((user)=>{
+        if(username === user.username){
+         return bcrypt.compare(password, user.password) 
+        }
+    })
+    .then(response=>{
+        if(!response) throw new Error('Input is incorrect')
+        const token = uuidv1();
+        console.log(id,token)
+        userService.updateTokenUser(token,id );
+        res.json({
+            status: 'Successful',
+            token: token
         });
-})
+    })
+    .catch(err => {
+        res.status(400).json({ error: err.toString()})
+    })
+ })
 
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-
-    UserService.readUser(username)
-        .then(user => {
-
-            if (!user) {
-                throw new Error(`Username ${username} does not exist.`)
-            }
-
-            return { match: bcrypt.compare(password, user.password), user: user }
-        })
-        .then(result => {
-            if (!result.match) throw new Error(`The password didn't match.`)
-
-            const token = uuidv1();
-            const newUser = result.user;
-            newUser.token = token;
-
-            UserService.updateUser(username, newUser);
-
-            res.json({
-                status: 'Successful',
-                token: token
-            });
-        })
-        .catch(err => {
-            res.status(400).json({ error: err.toString() })
-        })
-});
-
-
-// curl -X POST http://localhost:3000/user -H "Content-Type: application/json" -d '{"username": "taqkarim", "email": "taqqui.karim@pursuit.org", "location": "nyc", "password": "foobar"}'
-
-// CREATE USER
-app.post('/', (req, res) => {
-    const { username, email, location, password } = req.body;
-
-    bcrypt.hash(password, 10)
-        .then((encryptedPassword) => {
-            const newUser = {
-                username: username,
-                password: encryptedPassword,
-                email: email,
-                location: location,
-                updatedAt: new Date()
-            }
-
-            return UserService.createUser(username, newUser);
-        })
-        .then(response => {
-            res.json(response);
-        })
-        .catch(err => {
-            res.status(400).json({ error: 'Something went wrong' });
-        })
-});
-
-// GET USER
-app.get('/:id', (req, res) => {
-    const { id } = req.params;
-
-    UserService.readUser(id)
-        .then(user => {
-            if (!user) {
-                throw new Error('User not found!');
-            }
-
-            res.json(user);
-        })
-        .catch(err => {
-            res.status(404).json({ error: err.toString() })
-        });
-
-});
-
-
-// UPDATE USER
-app.put('/:id', (req, res) => {
-    const { username, email, location, password } = req.body;
-
-    const newUser = {
-        username: username,
-        password: password,
-        email: email,
-        location: location,
-        updatedAt: new Date()
-    }
-
-    UserService.updateUser(username, newUser)
-        .then(response => {
-            res.json(response);
-        })
-        .catch(err => {
-            res.status(400).json({ error: 'Something went wrong' });
-        })
-
-})
-
-
-// DELETE USER
-app.delete('/:id', (req, res) => {
-    const { id } = req.params;
-
-    UserService.deleteUser(id)
-        .then(response => {
-            res.json(response);
-        })
-        .catch(err => {
-            res.status(400).json({ error: err.toString() })
-        })
-
-})
-
-module.exports = {
-    userApp: app,
-}
+module.exports = userRouter;
